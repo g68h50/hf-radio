@@ -14,10 +14,12 @@ class GenTools:
         [1, 1, 1, 0, 0, 1, 0],
         [1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0]
     ]
+    similarity_threshold = 0.5
 
     def __init__(self, matrix_size, walsh_size):
         self.matrix_size = matrix_size
         self.walsh_size = walsh_size
+        self.tolerance = self.matrix_size / 2
 
     def __str__(self):
         return f"generate hadamard matrix (n={self.matrix_size}) and walsh sequence size {self.walsh_size}"
@@ -29,7 +31,7 @@ class GenTools:
         if n == 1:
             return np.array([[1]])
         else:
-            h = self._hadamard_matrix(n // 2)
+            h = self._hadamard_matrix(self, n // 2)
             return np.block([
                 [h, h],
                 [h, -h]
@@ -39,7 +41,7 @@ class GenTools:
     def _walsh_sequences(self):
         """Генерация последовательностей Уолша длиной n"""
         n = self.walsh_size
-        H = self._hadamard_matrix(n)
+        H = self._hadamard_matrix(self, n)
         H = (H + 1) // 2
         # Перестановка по числу переходов (для Уолша-Хэддема)
         order = np.argsort([bin(i).count('1') for i in range(n)])
@@ -51,11 +53,11 @@ class GenTools:
         return np.sum(A == B) / A.size
 
     @staticmethod
-    def _check_uniform_distribution(self, A, tolerance=1):
+    def _check_uniform_distribution(self, A):
         """Проверяет равномерное распределение 1 и 0 в строках и колонках."""
         row_sums = np.sum(A, axis=1)
         col_sums = np.sum(A, axis=0)
-        return np.max(row_sums) - np.min(row_sums) <= tolerance and np.max(col_sums) - np.min(col_sums) <= tolerance
+        return np.max(row_sums) - np.min(row_sums) <= self.tolerance and np.max(col_sums) - np.min(col_sums) <= self.tolerance
 
     @staticmethod
     def _calculate_correlation(self, A):
@@ -69,7 +71,7 @@ class GenTools:
         return max(correlation_values)
 
     @staticmethod
-    def _generate_optimized_matrices(self, similarity_threshold=0.5, tolerance=1.0):
+    def _generate_optimized_matrices(self):
         n = self.matrix_size
         if (n & (n - 1)) != 0 or n < 1:
             raise ValueError("Размер матрицы должен быть степенью двойки (2, 4, 8, 16, ...)")
@@ -80,28 +82,22 @@ class GenTools:
             modified_H = H * np.array(signs)[:, np.newaxis]
             binary_matrix = (modified_H + 1) // 2
             inverse_matrix = 1 - binary_matrix
-            if not self._check_uniform_distribution(binary_matrix, tolerance):
+            if not self._check_uniform_distribution(self, A=binary_matrix):
                 continue
-            if any(self._hamming_distance(binary_matrix, M) > similarity_threshold for M in candidate_matrices):
+            if any(self._hamming_distance(self, A=binary_matrix, B=M) > self.similarity_threshold for M in
+                   candidate_matrices):
                 continue
             if any(np.array_equal(inverse_matrix, M) for M in candidate_matrices):
                 continue
 
             candidate_matrices.append(binary_matrix)  # Фильтрация по корреляции
         if candidate_matrices:
-            min_correlation = min(self._calculate_correlation(M) for M in candidate_matrices)
-            optimal_matrices = [M for M in candidate_matrices if self._calculate_correlation(M) == min_correlation]
+            min_correlation = min(self._calculate_correlation(self, A=M) for M in candidate_matrices)
+            optimal_matrices = [M for M in candidate_matrices if
+                                self._calculate_correlation(self, A=M) == min_correlation]
         else:
             optimal_matrices = []
         return optimal_matrices
-
-    @staticmethod
-    def _check_autocorrelation(A):
-        """Проверяет автокорреляцию: A A^T = kI."""
-        n = A.shape[0]
-        AAT = np.dot(2 * A - 1, (2 * A - 1).T)
-        I = np.identity(n) * np.trace(AAT) / n
-        return np.allclose(AAT, I)
 
     @staticmethod
     def _gen_matrix_mul_walsh(self, matrices, walsh_seq):
@@ -162,11 +158,8 @@ class GenTools:
         return res
 
     def get_matrix(self, inx_barker=0):
-        similarity_threshold = 0.5
-        tolerance = self.matrix_size / 2
-
         # Вывод последовательностей Уолша длиной 32
-        sequences = self._walsh_sequences()
+        sequences = self._walsh_sequences(self)
         # варакин
         walsh_seq = []
         for seq in sequences:
@@ -180,20 +173,27 @@ class GenTools:
             walsh_seq.append(w_s)
 
         # Генерация матриц
-        matrices = self._generate_optimized_matrices(self, similarity_threshold=similarity_threshold,
-                                                     tolerance=tolerance)
+        matrices = self._generate_optimized_matrices(self)
         m_w = self._gen_matrix_mul_walsh(self, matrices=matrices, walsh_seq=walsh_seq)
         res = self._gen_matrix_mul_barker(self, matrices=m_w, inx_barker=inx_barker)
 
         return res
 
     def get_matrix_preambula(self, inx_barker=3):
-        similarity_threshold = 0.5
-        tolerance = self.matrix_size / 2
-
         # Генерация матриц
-        matrices = self._generate_optimized_matrices(self, similarity_threshold=similarity_threshold,
-                                                     tolerance=tolerance)
+        matrices = self._generate_optimized_matrices(self)
         res = self._gen_matrix_preambula(self, matrices=matrices, inx_barker=inx_barker)
 
         return res
+
+    def check_autocorrelation(A):
+        """Проверяет автокорреляцию: A A^T = kI."""
+        n = A.shape[0]
+        AAT = np.dot(2 * A - 1, (2 * A - 1).T)
+        I = np.identity(n) * np.trace(AAT) / n
+        return np.allclose(AAT, I)
+
+
+gg = GenTools(8, 32)
+m = gg.get_matrix()
+p = gg.get_matrix_preambula()
