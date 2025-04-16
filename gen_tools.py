@@ -194,6 +194,6 @@ class GenTools:
         return np.allclose(AAT, I)
 
 
-gg = GenTools(8, 32)
-m = gg.get_matrix()
-p = gg.get_matrix_preambula()
+# gg = GenTools(8, 32)
+# m = gg.get_matrix()
+# p = gg.get_matrix_preambula()
